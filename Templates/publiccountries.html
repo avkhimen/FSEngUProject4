@@ -36,22 +36,20 @@
     </nav>
     <div class="container">
         <div class="row">
-            <div class="col-3 bg-info margin-top: 1rem">
-				
+            <div class="col-3 bg-light margin-top: 1rem">
+				{% for i in countries %}
+                <div>
+                <p><a href= '{{url_for('showCountryFood', country_id= i.id)}}'><h3>{{i.name}}<h3></a></p>
+                </div>
+                {% endfor %}
             </div>
             <div class="col-9 bg-warning margin-top: 1rem">
-                <h1>New Country Food Item</h1>
-                <form action="{{url_for('newCountryFoodItem', country_id=country_id)}}" method = 'POST'>
-                <p>Name:</p>
-                <input type='text' size='30' name='name' required>
                 <br>
-                <br>
-                <p>Description:</p>
-                <input type='text' size='60' name='description' required>
-                <input type='submit' value='Create'>
-                <br>
-                <br>
-                </form>
+				{% for i in fooditems %}
+                <div>
+                <p>{{i.name}}</p>
+                </div>
+                {% endfor %}
             </div>
         </div>
     </div>

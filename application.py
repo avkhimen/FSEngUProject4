@@ -3,7 +3,7 @@ from flask import Flask, render_template, request
 from flask import redirect, url_for, flash, jsonify
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from database_setup import Base, Country, FoodItem
+from database_setup import Base, Country, FoodItem, User
 from flask import session as login_session
 import random
 import string
@@ -39,12 +39,14 @@ def showLogin():
 # Authenticate using Google+ account
 @app.route('/gconnect', methods=['POST'])
 def gconnect():
+    # Validate state token
     if request.args.get('state') != login_session['state']:
         response = make_response(json.dumps('Invalid state parameter.'), 401)
         response.headers['Content-Type'] = 'application/json'
         return response
-    # Obtain authorization code
-    code = request.data
+    # Obtain authorization code, now compatible with Python3
+    request.get_data()
+    code = request.data.decode('utf-8')
 
     try:
         # Upgrade the authorization code into a credentials object
@@ -61,8 +63,12 @@ def gconnect():
     access_token = credentials.access_token
     url = ('https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=%s'
            % access_token)
+    # Submit request, parse response - Python3 compatible
     h = httplib2.Http()
-    result = json.loads(h.request(url, 'GET')[1])
+    response = h.request(url, 'GET')[1]
+    str_response = response.decode('utf-8')
+    result = json.loads(str_response)
+
     # If there was an error in the access token info, abort.
     if result.get('error') is not None:
         response = make_response(json.dumps(result.get('error')), 500)
@@ -81,7 +87,6 @@ def gconnect():
     if result['issued_to'] != CLIENT_ID:
         response = make_response(
             json.dumps("Token's client ID does not match app's."), 401)
-        print "Token's client ID does not match app's."
         response.headers['Content-Type'] = 'application/json'
         return response
 
@@ -89,17 +94,19 @@ def gconnect():
     stored_gplus_id = login_session.get('gplus_id')
     if stored_access_token is not None and gplus_id == stored_gplus_id:
         response = make_response(json.dumps(
-            'Current user is already connected.'), 200)
+                                            'Current user is'
+                                            ' already connected.'),
+                                 200)
         response.headers['Content-Type'] = 'application/json'
         return response
 
     # Store the access token in the session for later use.
-    login_session['access_token'] = credentials.access_token
+    login_session['access_token'] = access_token
     login_session['gplus_id'] = gplus_id
 
     # Get user info
     userinfo_url = "https://www.googleapis.com/oauth2/v1/userinfo"
-    params = {'access_token': credentials.access_token, 'alt': 'json'}
+    params = {'access_token': access_token, 'alt': 'json'}
     answer = requests.get(userinfo_url, params=params)
 
     data = answer.json()
@@ -108,50 +115,74 @@ def gconnect():
     login_session['picture'] = data['picture']
     login_session['email'] = data['email']
 
+    # see if user exists, if it doesn't make a new one
+    user_id = getUserID(login_session['email'])
+    if not user_id:
+        user_id = createUser(login_session)
+    login_session['user_id'] = user_id
+
     output = ''
     output += '<h1>Welcome, '
     output += login_session['username']
     output += '!</h1>'
     output += '<img src="'
     output += login_session['picture']
-    output += ' " style = "width: 300px; height: 300px;border-radius:'
+    output += ' " style = "width: 300px; height: 300px;border-radius: '
     '150px;-webkit-border-radius: 150px;-moz-border-radius: 150px;"> '
     flash("you are now logged in as %s" % login_session['username'])
-    print "done!"
     return output
+
+
+def createUser(login_session):
+    newUser = User(name=login_session['username'], email=login_session[
+                   'email'], picture=login_session['picture'])
+    session.add(newUser)
+    session.commit()
+    user = session.query(User).filter_by(email=login_session['email']).one()
+    return user.id
+
+
+def getUserInfo(user_id):
+    user = session.query(User).filter_by(id=user_id).one()
+    return user
+
+
+def getUserID(email):
+    try:
+        user = session.query(User).filter_by(email=email).one()
+        return user.id
+    except Exception:
+        return None
 
 
 # Disconnect from Google+ account
 @app.route('/gdisconnect')
 def gdisconnect():
+        # Only disconnect a connected user.
     access_token = login_session.get('access_token')
     if access_token is None:
-        print 'Access Token is None'
-        response = make_response(json.dumps(
-            'Current user not connected.'), 401)
+        response = make_response(
+            json.dumps('Current user not connected.'), 401)
         response.headers['Content-Type'] = 'application/json'
         return response
-    print 'In gdisconnect access token is %s', access_token
-    print 'User name is: '
-    print login_session['username']
-    url = 'https://accounts.google.com/o/oauth2/'
-    'revoke?token=%s' % login_session['access_token']
+    url = 'https://accounts.google.com/o/oauth2/revoke?token=%s' % access_token
     h = httplib2.Http()
     result = h.request(url, 'GET')[0]
-    print 'result is '
-    print result
     if result['status'] == '200':
+        # Reset the user's sesson.
         del login_session['access_token']
         del login_session['gplus_id']
         del login_session['username']
         del login_session['email']
         del login_session['picture']
+
         response = make_response(json.dumps('Successfully disconnected.'), 200)
         response.headers['Content-Type'] = 'application/json'
         return response
     else:
-        response = make_response(json.dumps(
-            'Failed to revoke token for given user.', 400))
+        # For whatever reason, the given token was invalid.
+        response = make_response(
+            json.dumps('Failed to revoke token for given user.', 400))
         response.headers['Content-Type'] = 'application/json'
         return response
 
@@ -178,8 +209,12 @@ def showCountryFoodItemJSON(country_id, item_id):
 def showAllCountries():
     countries = session.query(Country).all()
     fooditems = session.query(FoodItem).limit(5).all()
-    return render_template('countries.html', countries=countries,
-                           fooditems=fooditems)
+    if 'username' not in login_session:
+        return render_template('publiccountries.html', countries=countries,
+                               fooditems=fooditems)
+    else:
+        return render_template('countries.html', countries=countries,
+                               fooditems=fooditems)
 
 
 # Add new country
@@ -189,7 +224,7 @@ def newCountry():
         return redirect('/login')
     if request.method == 'POST':
         newCountry = Country(
-            name=request.form['name'])
+            name=request.form['name'], user_id=login_session['user_id'])
         session.add(newCountry)
         session.commit()
         return redirect('/countries')
@@ -201,19 +236,37 @@ def newCountry():
 @app.route('/countries/<int:country_id>/')
 def showCountryFood(country_id):
     country_to_show = session.query(Country).filter_by(id=country_id).one()
+    creator = getUserInfo(country_to_show.user_id)
     fooditems = session.query(FoodItem).filter_by(
         country_id=country_to_show.id)
-    return render_template('countryfood.html', fooditems=fooditems,
-                           country_to_show=country_to_show)
+    if ('username' not in login_session or
+            creator.id != login_session['user_id']):
+        return render_template('publiccountryfood.html', fooditems=fooditems,
+                               country_to_show=country_to_show)
+    else:
+        return render_template('countryfood.html', fooditems=fooditems,
+                               country_to_show=country_to_show)
 
 
 # Show individual food item information
 @app.route('/countries/<int:country_id>/<int:item_id>/')
 def showCountryFoodItem(country_id, item_id):
+    if 'username' not in login_session:
+        return redirect('/login')
     countryFoodItem = session.query(FoodItem).filter_by(id=item_id).one()
-    return render_template(
-        'showcountryfooditem.html', country_id=country_id, item_id=item_id,
-        item=countryFoodItem)
+    country = session.query(Country).filter_by(id=country_id).one()
+    creator = getUserInfo(country.user_id)
+    if ('username' not in login_session or
+            creator.id != login_session['user_id']):
+        return render_template('publicshowcountryfooditem.html',
+                               country_id=country_id,
+                               item_id=item_id,
+                               item=countryFoodItem)
+    else:
+        return render_template('showcountryfooditem.html',
+                               country_id=country_id,
+                               item_id=item_id,
+                               item=countryFoodItem)
 
 
 # Add new food item
@@ -221,10 +274,15 @@ def showCountryFoodItem(country_id, item_id):
 def newCountryFoodItem(country_id):
     if 'username' not in login_session:
         return redirect('/login')
+    country = session.query(Country).filter_by(id=country_id).one()
+    if login_session['user_id'] != country.user_id:
+        return "<script>function myFunction() {alert('You are not authorized "
+        "to add food items to this Country. Please add your own Country "
+        "to add food items.');}</script><body onload='myFunction()''>"
     if request.method == 'POST':
         newCountryFoodItem = FoodItem(
             name=request.form['name'], description=request.form['description'],
-            country_id=country_id)
+            country_id=country_id, user_id=country.user_id)
         session.add(newCountryFoodItem)
         session.commit()
         return redirect(url_for('showCountryFood', country_id=country_id))
@@ -238,6 +296,10 @@ def editCountry(country_id):
     editedCountry = session.query(Country).filter_by(id=country_id).one()
     if 'username' not in login_session:
         return redirect('/login')
+    if editedCountry.user_id != login_session['user_id']:
+        return "<script>function myFunction() {alert('You are not authorized "
+        "to edit this Country. Please add your own Country to "
+        "edit.');}</script><body onload='myFunction()''>"
     if request.method == 'POST':
         if request.form['name']:
             editedCountry.name = request.form['name']
@@ -254,9 +316,14 @@ def editCountry(country_id):
 @app.route('/countries/<int:country_id>/<int:item_id>/edit/',
            methods=['GET', 'POST'])
 def editCountryFoodItem(country_id, item_id):
-    editedCountryFoodItem = session.query(FoodItem).filter_by(id=item_id).one()
     if 'username' not in login_session:
         return redirect('/login')
+    editedCountryFoodItem = session.query(FoodItem).filter_by(id=item_id).one()
+    country = session.query(Country).filter_by(id=country_id).one()
+    if login_session['user_id'] != country.user_id:
+        return "<script>function myFunction() {alert('You are not authorized "
+        "to edit food items from this country. Please add your own country "
+        "to edit food items.');}</script><body onload='myFunction()''>"
     if request.method == 'POST':
         if request.form['name']:
             editedCountryFoodItem.name = request.form['name']
@@ -276,9 +343,14 @@ def editCountryFoodItem(country_id, item_id):
 @app.route('/countries/<int:country_id>/<int:item_id>/delete/',
            methods=['GET', 'POST'])
 def deleteCountryFoodItem(country_id, item_id):
-    itemToDelete = session.query(FoodItem).filter_by(id=item_id).one()
     if 'username' not in login_session:
         return redirect('/login')
+    itemToDelete = session.query(FoodItem).filter_by(id=item_id).one()
+    country = session.query(Country).filter_by(id=country_id).one()
+    if login_session['user_id'] != country.user_id:
+        return "<script>function myFunction() {alert('You are not authorized "
+        "to delete food items from this country. Please add your own country "
+        "to delete food items.');}</script><body onload='myFunction()''>"
     if request.method == 'POST':
         session.delete(itemToDelete)
         session.commit()

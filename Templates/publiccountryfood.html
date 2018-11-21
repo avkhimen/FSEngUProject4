@@ -37,21 +37,28 @@
     <div class="container">
         <div class="row">
             <div class="col-3 bg-info margin-top: 1rem">
-				
             </div>
             <div class="col-9 bg-warning margin-top: 1rem">
-                <h1>New Country Food Item</h1>
-                <form action="{{url_for('newCountryFoodItem', country_id=country_id)}}" method = 'POST'>
-                <p>Name:</p>
-                <input type='text' size='30' name='name' required>
+                <h1>{{country_to_show.name}}</h1>
                 <br>
                 <br>
-                <p>Description:</p>
-                <input type='text' size='60' name='description' required>
-                <input type='submit' value='Create'>
+                {% with messages = get_flashed_messages() %}
+                    {% if messages %}
+                    <ul>
+                        {% for message in messages %}
+                            <li><strong>{{message}}</strong></li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                {% endwith %}
+                <br>
+				{% for i in fooditems %}
+                <div>
+                <p><a href='{{url_for('showCountryFoodItem', country_id = country_to_show.id, item_id = i.id) }}'>{{i.name}}, {{i.description}}</a></p>
+                </div>
                 <br>
                 <br>
-                </form>
+                {% endfor %}
             </div>
         </div>
     </div>

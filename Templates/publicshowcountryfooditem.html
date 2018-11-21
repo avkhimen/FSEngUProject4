@@ -37,21 +37,11 @@
     <div class="container">
         <div class="row">
             <div class="col-3 bg-info margin-top: 1rem">
-				
             </div>
             <div class="col-9 bg-warning margin-top: 1rem">
-                <h1>New Country Food Item</h1>
-                <form action="{{url_for('newCountryFoodItem', country_id=country_id)}}" method = 'POST'>
-                <p>Name:</p>
-                <input type='text' size='30' name='name' required>
-                <br>
-                <br>
-                <p>Description:</p>
-                <input type='text' size='60' name='description' required>
-                <input type='submit' value='Create'>
-                <br>
-                <br>
-                </form>
+                <h1>{{item.name}}</h1>
+                <p>{{item.description}}</p>
+                </div>
             </div>
         </div>
     </div>

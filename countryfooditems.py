@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from database_setup import Country, Base, FoodItem
+from database_setup import Country, Base, FoodItem, User
 
 engine = create_engine('sqlite:///countriesfooditems.db')
 # Bind the engine to the metadata of the Base class so that the
@@ -19,75 +19,97 @@ DBSession = sessionmaker(bind=engine)
 session = DBSession()
 
 
-# Menu for UrbanBurger
-russia = Country(name="Russia")
+# Add countries and food items
+User1 = User(name="John Doe", email="johndoe@johndoe.com",
+             picture='')
+session.add(User1)
+session.commit()
+
+
+russia = Country(user_id=1, name="Russia")
 
 session.add(russia)
 session.commit()
 
-foodItem1 = FoodItem(name="Borsch", description="Beat, veggie, and sometimes tomato soup served with sourcream",
+foodItem1 = FoodItem(name="Borsch",
+                     description="Beat, veggie, and sometimes"
+                     " tomato soup served with sourcream",
                      country=russia)
 
 session.add(foodItem1)
 session.commit()
 
 
-foodItem2 = FoodItem(name="Pelmeni", description="Boiled dough dumplings with chicken or beef",
+foodItem2 = FoodItem(user_id=1, name="Pelmeni",
+                     description="Boiled dough dumplings"
+                     " with chicken or beef",
                      country=russia)
 
 session.add(foodItem2)
 session.commit()
 
-italy = Country(name="Italy")
+italy = Country(user_id=1, name="Italy")
 
 session.add(italy)
 session.commit()
 
-foodItem1 = FoodItem(name="Speghetti", description="Long, thin pasta usually served with cheese and meat",
+foodItem1 = FoodItem(user_id=1, name="Speghetti",
+                     description="Long, thin pasta usually"
+                     " served with cheese and meat",
                      country=italy)
 
 session.add(foodItem1)
 session.commit()
 
 
-foodItem2 = FoodItem(name="Pizza", description="Baked dough within toppings such as tomato and meat and cheese on top",
+foodItem2 = FoodItem(user_id=1, name="Pizza",
+                     description="Baked dough within toppings"
+                     " such as tomato and meat and cheese on top",
                      country=italy)
 
 session.add(foodItem2)
 session.commit()
 
-mexico = Country(name="Mexico")
+mexico = Country(user_id=1, name="Mexico")
 
 session.add(mexico)
 session.commit()
 
-foodItem1 = FoodItem(name="Tacos", description="Tortillas folded with meat, greens, and salsa",
+foodItem1 = FoodItem(user_id=1, name="Tacos",
+                     description="Tortillas folded"
+                     " with meat, greens, and salsa",
                      country=mexico)
 
 session.add(foodItem1)
 session.commit()
 
 
-foodItem2 = FoodItem(name="Burrito", description="Veggies, rice, meat, and beans wrapped in a tortilla",
-                     country= mexico)
+foodItem2 = FoodItem(user_id=1, name="Burrito",
+                     description="Veggies, rice, meat,"
+                     " and beans wrapped in a tortilla",
+                     country=mexico)
 
 session.add(foodItem2)
 session.commit()
 
-canada = Country(name="Canada")
+canada = Country(user_id=1, name="Canada")
 
 session.add(canada)
 session.commit()
 
-foodItem1 = FoodItem(name="Poutine", description="Fries with gravy and cheese curds",
+foodItem1 = FoodItem(user_id=1, name="Poutine",
+                     description="Fries with gravy"
+                     " and cheese curds",
                      country=canada)
 
 session.add(foodItem1)
 session.commit()
 
 
-foodItem2 = FoodItem(name="Beavertails", description="Deep-fried dough covered in caramel and chocolate",
-                     country= canada)
+foodItem2 = FoodItem(user_id=1, name="Beavertails",
+                     description="Deep-fried dough"
+                     " covered in caramel and chocolate",
+                     country=canada)
 
 session.add(foodItem2)
 session.commit()
